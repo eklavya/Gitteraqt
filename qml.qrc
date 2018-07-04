@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/">
+        <file>main.qml</file>
+        <file>gitterapi.js</file>
+        <file>BayeuxClient.qml</file>
+        <file>ScrollSwitch.qml</file>
+    </qresource>
+</RCC>
