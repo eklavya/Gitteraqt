@@ -7,6 +7,10 @@ A native gui app for Gitter written in QML/Qt. Let's make a truly beautiful and 
 - [paulovap](https://github.com/paulovap) for https://github.com/paulovap/qtleveldb
 - [OlehKulykov](https://github.com/OlehKulykov) for https://github.com/OlehKulykov/FayeCpp
 
+## How to get
+
+Checkout [releases](https://github.com/eklavya/Gitteraqt/releases).
+
 ## How to use
 
 Get a token from [Gitter](https://developer.gitter.im).
