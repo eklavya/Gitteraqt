@@ -519,11 +519,7 @@ Window {
     }
 
     function sendMessage() {
-        Gitter.sendMessage(settings.token, window.curRoom, curMsg.text,
-                           function (rmId, message) {
-                               msgs.model.append(message)
-                               saveMessage(rmId, message)
-                           })
+        Gitter.sendMessage(settings.token, window.curRoom, curMsg.text)
         curMsg.text = ""
     }
 

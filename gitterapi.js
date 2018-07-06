@@ -72,7 +72,7 @@ function markRead(token, userId, roomId, msgIds) {
     xhr.send({"chat": JSON.stringify(msgIds)});
 }
 
-function sendMessage(token, roomId, m, onSuccess) {
+function sendMessage(token, roomId, m) {
     print(token, roomId, m);
     var xhr = new XMLHttpRequest();
     xhr.open("POST", "https://api.gitter.im/v1/rooms/" + roomId + "/chatMessages", true);
@@ -81,10 +81,10 @@ function sendMessage(token, roomId, m, onSuccess) {
     xhr.onreadystatechange = function() {
         if(xhr.readyState === XMLHttpRequest.DONE) {
             if (xhr.status !== 200) print(xhr.statusText, xhr.responseText)
-            if (xhr.status === 200) {
-                var message = JSON.parse(xhr.responseText);
-                onSuccess(roomId, message);
-            }
+//            if (xhr.status === 200) {
+//                var message = JSON.parse(xhr.responseText);
+//                onSuccess(roomId, message);
+//            }
         }
     }
     var body = JSON.stringify({"text": m});
