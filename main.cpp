@@ -1,28 +1,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QStandardPaths>
-#include <QSqlDatabase>
-#include <QSqlError>
 #include <QtQml>
-
-#include "messagesmodel.h"
-#include "roomsmodel.h"
-
-static void connectToDatabase(const QString &path)
-{
-    QSqlDatabase database = QSqlDatabase::addDatabase("QSQLITE");
-    if (!database.isValid())
-        qFatal("Cannot add database: %s", qPrintable(database.lastError().text()));
-    // Ensure that we have a writable location on all devices.
-    const QString fileName = path + "/gitteraqt.sqlite3";
-    // When using the SQLite driver, open() will create the SQLite database if it doesn't exist.
-    database.setDatabaseName(fileName);
-    qDebug() << fileName;
-    if (!database.open()) {
-        QFile::remove(fileName);
-        qFatal("Cannot open database: %s", qPrintable(database.lastError().text()));
-    }
-}
 
 class CachingFactory : public QQmlNetworkAccessManagerFactory
 {
@@ -60,17 +39,14 @@ int main(int argc, char *argv[])
 
     QGuiApplication app(argc, argv);
 
-    qmlRegisterType<MessagesModel>("gitter.qml", 1, 0, "MessagesModel");
-    qmlRegisterType<RoomsModel>("gitter.qml", 1, 0, "RoomsModel");
-
-    connectToDatabase(writePath);
-
     QQmlApplicationEngine engine;
     engine.setNetworkAccessManagerFactory(new CachingFactory);
 
 #ifndef QT_DEBUG
     qInstallMessageHandler(noMessageOutput);
 #endif
+
+    engine.rootContext()->setContextProperty("appdir", writeDir.absolutePath());
 
     engine.load(QUrl(QStringLiteral("qrc:/main.qml")));
     if (engine.rootObjects().isEmpty())

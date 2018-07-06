@@ -4,7 +4,6 @@ import QtQuick.Layouts 1.3
 import QtQuick.Controls 2.3
 import "gitterapi.js" as Gitter
 import Qt.labs.settings 1.0
-import gitter.qml 1.0
 import QtQuick.Dialogs 1.2
 
 Switch {

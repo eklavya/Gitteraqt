@@ -4,8 +4,8 @@ import QtQuick.Layouts 1.3
 import QtQuick.Controls 2.3
 import "gitterapi.js" as Gitter
 import Qt.labs.settings 1.0
-import gitter.qml 1.0
 import QtQuick.Dialogs 1.2
+import QtLevelDB 1.0 as LDB
 
 Window {
     id: window
@@ -20,9 +20,9 @@ Window {
 
     property var allRooms: []
 
-    // when we add autocomplete
-//    property var roomUsers: ({})
 
+    // when we add autocomplete
+    //    property var roomUsers: ({})
     property var notifier: ({
 
                             })
@@ -32,8 +32,14 @@ Window {
                                  })
 
     onCurRoomChanged: {
-        msgs.model.room = curRoom
-        msgs.onRoomChanged()
+        msgs.model.clear()
+        var mids = db.get(curRoom + "-msgs")
+        var ids = mids ? JSON.parse(mids) : []
+        var latest = ids.slice(-500)
+        ids.forEach(function (mid) {
+            var m = JSON.parse(db.get(JSON.stringify(mid)))
+            msgs.model.append(m)
+        })
         if (notifier.hasOwnProperty(curRoom))
             notifier[curRoom].changeHighlight(false)
         settings.roomState[curRoom] = 0
@@ -50,6 +56,27 @@ Window {
                                  })
     }
 
+    LDB.LevelDB {
+        id: db
+        source: "file://" + appdir + "/gitterdb"
+
+        onLastErrorChanged: {
+            console.error(appdir, lastError)
+        }
+
+        onOpenedChanged: {
+            var rms = JSON.parse(db.get("rooms"))
+            rms.forEach(function (rm) {
+                var mids = db.get(rm.id + "-msgs")
+                var ids = mids ? JSON.parse(mids) : []
+                ids = ids.slice(0, ids.length - 500)
+                ids.forEach(function (i) {
+                    db.del(JSON.stringify(i))
+                })
+            })
+        }
+    }
+
     Row {
         id: row
         anchors.fill: parent
@@ -64,7 +91,7 @@ Window {
                 height: parent.height
                 anchors.left: parent.left
 
-                model: RoomsModel {
+                model: ListModel {
                 }
 
                 currentIndex: -1
@@ -152,15 +179,10 @@ Window {
                 anchors.rightMargin: 0
 
                 property int lastInd: count - 1
-                property int lastCount: count
 
                 flickableDirection: Flickable.VerticalFlick
 
                 visible: curRoom !== ''
-
-                function onRoomChanged() {
-                    positionViewAtEnd()
-                }
 
                 cacheBuffer: 200
 
@@ -183,25 +205,18 @@ Window {
                     }
                 }
 
-                onCountChanged: {
-                    if (window.autoScrollSwitch.checked) {
-                        positionViewAtIndex(count - 1, ListView.End)
-                    } else {
-                        positionViewAtIndex(lastInd, ListView.Center)
-                    }
-                }
-
                 headerPositioning: ListView.PullBackHeader
 
                 highlightMoveDuration: 200
 
-                model: MessagesModel {
-                    //                    id: msgsModel
-                    room: window.curRoom
-                    //                    onModelReset: {
-                    //                        if (!canFetchMore(msgsModel))
-                    //                            msgs.modelWasReset()
-                    //                    }
+                model: ListModel {
+                    onCountChanged: {
+                        if (window.autoScrollSwitch.checked) {
+                            msgs.positionViewAtIndex(count - 1, ListView.End)
+                        } else {
+                            msgs.positionViewAtIndex(msgs.lastInd, ListView.Center)
+                        }
+                    }
                 }
 
                 delegate: Item {
@@ -210,16 +225,13 @@ Window {
                     height: con.height + 20
 
                     Row {
-                        id: row2
                         padding: 4
                         anchors.fill: parent
-
-                        property var sender: JSON.parse(model.fromUser)
 
                         Image {
                             width: 32
                             height: 32
-                            source: row2.sender.avatarUrlSmall
+                            source: model.fromUser.avatarUrlSmall
                             fillMode: Image.PreserveAspectFit
                             sourceSize.width: 128
                             sourceSize.height: 128
@@ -231,7 +243,8 @@ Window {
                                 width: parent.width
                                 height: 20
                                 Text {
-                                    text: row2.sender.displayName + " @" + row2.sender.username
+                                    text: model.fromUser.displayName + " @"
+                                          + model.fromUser.username
                                     color: "#888888"
                                 }
                                 Text {
@@ -295,11 +308,6 @@ Window {
                                     Qt.locale(), "hh:mm AP")
                     }
                 }
-
-                Component.onCompleted: {
-                    currentIndex = count - 1
-                }
-
                 spacing: 10
             }
 
@@ -382,40 +390,22 @@ Window {
                 settings.token = token
                 settings.user = user
                 Gitter.getRooms(settings.token, user, function (rms) {
-                    var ids = []
-                    var names = []
-                    var avatarUrls = []
+                    db.put("rooms", JSON.stringify(rms))
                     for (var i = 0; i < rms.length; i++) {
                         var r = rms[i]
-                        ids.push(r.id)
-                        names.push(r.name)
-                        avatarUrls.push(r.avatarUrl)
+                        rooms.model.append(r)
                     }
-                    rooms.model.addRoom(ids, names, avatarUrls)
 
                     for (var j = 0; j < rms.length; j++) {
                         var rid = rms[j].id
                         Gitter.getMessages(settings.token, rid, 50, "", "",
                                            function (ms, r) {
-                                               var ids = []
-                                               var htmls = []
-                                               var fromUsers = []
-                                               var roomIds = []
-                                               var sents = []
                                                for (var k = 0; k < ms.length; k++) {
                                                    var m = ms[k]
-                                                   ids.push(m.id)
-                                                   htmls.push(m.html)
-                                                   fromUsers.push(
-                                                               JSON.stringify(
-                                                                   m.fromUser))
-                                                   roomIds.push(r)
-                                                   sents.push(m.sent)
+                                                   if (curRoom === r)
+                                                       msgs.model.append(m)
+                                                   saveMessage(r, m)
                                                }
-                                               msgs.model.addMessage(
-                                                           ids, htmls,
-                                                           fromUsers,
-                                                           roomIds, sents)
                                            })
                     }
                 })
@@ -459,17 +449,13 @@ Window {
 
     function init() {
         Gitter.getRooms(settings.token, settings.user, function (rms) {
-            var ids = []
-            var names = []
-            var avatarUrls = []
+            db.put("rooms", JSON.stringify(rms))
+            rooms.model.clear()
             for (var i = 0; i < rms.length; i++) {
                 var r = rms[i]
-                ids.push(r.id)
                 allRooms.push(r.id)
-                names.push(r.name)
-                avatarUrls.push(r.avatarUrl)
+                rooms.model.append(r)
             }
-            rooms.model.addRoom(ids, names, avatarUrls)
 
             refreshRooms(allRooms)
 
@@ -480,17 +466,15 @@ Window {
                                      switch (payload.operation) {
                                      case "create":
                                          var m1 = payload.model
-                                         msgs.model.addMessage(
-                                                     [m1.id], [m1.html],
-                                                     [JSON.stringify(
-                                                          m1.fromUser)], [rm],
-                                                     [m1.sent])
+                                         if (curRoom === rm)
+                                             msgs.model.append(m1)
+                                         saveMessage(rm, m1)
                                          incrUnread(rm, 1)
                                          break
                                      case "update":
                                          var m2 = payload.model
-                                         msgs.model.updateMessage(rm, m2.id,
-                                                                  m2.html)
+                                         db.put(JSON.stringify(m2.id),
+                                                JSON.stringify(m2))
                                          break
                                      default:
 
@@ -502,33 +486,24 @@ Window {
 
     function refreshRooms(rms) {
         for (var i = 0; i < rms.length; i++) {
-            let rid = rms[i]
-            var lastId = msgs.model.lastIdForRoom(rid)
+            var rid = rms[i]
+            var mids = db.get(rid + "-msgs")
+            var ids = mids ? JSON.parse(mids) : []
+            var lastId = ids.length > 0 ? ids.slice(-1)[0] : ''
             Gitter.getMessages(settings.token, rid, "", "", lastId,
                                function (ms, r) {
-                                   var ids = []
-                                   var htmls = []
-                                   var fromUsers = []
-                                   var roomIds = []
-                                   var sents = []
                                    for (var k = 0; k < ms.length; k++) {
                                        var m = ms[k]
-                                       ids.push(m.id)
-                                       htmls.push(m.html)
-                                       fromUsers.push(JSON.stringify(
-                                                          m.fromUser))
-                                       roomIds.push(r)
-                                       sents.push(m.sent)
+                                       if (curRoom === r)
+                                           msgs.model.append(m)
+                                       saveMessage(r, m)
                                    }
-                                   msgs.model.addMessage(ids, htmls,
-                                                         fromUsers,
-                                                         roomIds, sents)
 
-                                       incrUnread(r, ms.length)
+                                   incrUnread(r, ms.length)
                                })
-//            Gitter.getRoomUsers(settings.token, rid, function (roomId, users) {
-//                roomUsers[roomId] = users
-//            })
+            //            Gitter.getRoomUsers(settings.token, rid, function (roomId, users) {
+            //                roomUsers[roomId] = users
+            //            })
         }
     }
 
@@ -546,12 +521,17 @@ Window {
     function sendMessage() {
         Gitter.sendMessage(settings.token, window.curRoom, curMsg.text,
                            function (rmId, message) {
-                               msgs.model.addMessage([message.id],
-                                                     [message.html],
-                                                     [JSON.stringify(
-                                                          message.fromUser)],
-                                                     [rmId], [message.sent])
+                               msgs.model.append(message)
+                               saveMessage(rmId, message)
                            })
         curMsg.text = ""
+    }
+
+    function saveMessage(roomId, message) {
+        var mids = db.get(roomId + "-msgs")
+        var ids = mids ? JSON.parse(mids) : []
+        db.put(JSON.stringify(message.id), JSON.stringify(message))
+        ids.push(message.id)
+        db.put(roomId + "-msgs", JSON.stringify(ids))
     }
 }
