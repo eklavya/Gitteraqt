@@ -11,6 +11,8 @@ A native gui app for Gitter written in QML/Qt. Let's make a truly beautiful and 
 
 Checkout [releases](https://github.com/eklavya/Gitteraqt/releases).
 
+To build from source checkout [Dev.md](Dev.md)
+
 ## How to use
 
 Get a token from [Gitter](https://developer.gitter.im).
